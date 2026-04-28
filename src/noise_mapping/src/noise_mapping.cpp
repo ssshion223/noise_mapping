@@ -10,7 +10,7 @@ GridMapNode::GridMapNode(): Node("grid_map_node") {
     std::bind(&GridMapNode::audio_listen_cb, this, std::placeholders::_1));
   local_pub_ = this->create_publisher<grid_map_msgs::msg::GridMap>("/local_grid_map", 10);
   global_pub_ = this->create_publisher<grid_map_msgs::msg::GridMap>("/global_grid_map", 10);
-  local_update_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), 
+  local_update_timer_ = this->create_wall_timer(std::chrono::milliseconds(200), 
   std::bind(&GridMapNode::local_update_cb, this));
   global_update_timer_ = this->create_wall_timer(std::chrono::milliseconds(3000), 
   std::bind(&GridMapNode::global_update_cb, this));
@@ -40,17 +40,6 @@ void GridMapNode::compute_kernel(const int &R, std::vector<std::vector<float>> &
   }
 }
 void GridMapNode::local_update_cb(){
-  //gaussian expanding
-  // geometry_msgs::msg::TransformStamped tf;
-  // try {
-  //   tf = tf_buffer_->lookupTransform("map", "base_link", tf2::TimePointZero);
-  // } catch (tf2::TransformException &ex) {
-  //   RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-  //       "TF not ready: %s", ex.what());
-  //   return;
-  // }
-  // double x = tf.transform.translation.x;
-  // double y = tf.transform.translation.y;
   audio_interfaces::msg::AudioMsg::SharedPtr audio_copy;
   {
     std::lock_guard<std::mutex> lock(audio_mutex_);
@@ -68,10 +57,20 @@ void GridMapNode::local_update_cb(){
     }
   }
   auto msg = grid_map::GridMapRosConverter::toMessage(local_map_);
-  global_pub_->publish(std::move(msg));
+  local_pub_->publish(std::move(msg));
+  // local_map_.clear("energy");
 }
 void GridMapNode::global_update_cb(){
-  
+  geometry_msgs::msg::TransformStamped tf;
+  try {
+    tf = tf_buffer_->lookupTransform("map", "base_link", tf2::TimePointZero);
+  } catch (tf2::TransformException &ex) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+        "TF not ready: %s", ex.what());
+    return;
+  }
+  double x = tf.transform.translation.x;
+  double y = tf.transform.translation.y;
 }
 void GridMapNode::audio_listen_cb(const audio_interfaces::msg::AudioMsg::SharedPtr msg){
   std::lock_guard<std::mutex> lock(audio_mutex_);
