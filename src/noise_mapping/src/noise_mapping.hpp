@@ -14,16 +14,25 @@ public:
 private:  //private function
   void initialGridMap();
   void audio_listen_cb(const audio_interfaces::msg::AudioMsg::SharedPtr msg);
-  void updategrid_cb();
-  void publishGridMap_cb();
+  void local_update_cb();
+  void global_update_cb();
+  void compute_kernel(const int &R, std::vector<std::vector<float>> &k, const float &sigma);
 private:  //private member
-  grid_map::GridMap map_;
+  int global_weight_ = 20;
+  int global_height_ = 20;
+  float resolution_ = 0.4;
+  int R_ = 5; //numbers of expanding
+  std::vector<std::vector<float>> Gaussian_kernel_;
+  float sigma_ = 0.3;
+  grid_map::GridMap local_map_;
+  grid_map::GridMap global_map_;
   rclcpp::Subscription<audio_interfaces::msg::AudioMsg>::SharedPtr audio_listener_;
   std::mutex audio_mutex_;
   audio_interfaces::msg::AudioMsg::SharedPtr latest_audio_;
-  rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr pub_;
-  rclcpp::TimerBase::SharedPtr timer_update_;
-  rclcpp::TimerBase::SharedPtr timer_publish_;
+  rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr local_pub_;
+  rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr global_pub_;
+  rclcpp::TimerBase::SharedPtr local_update_timer_;
+  rclcpp::TimerBase::SharedPtr global_update_timer_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };
