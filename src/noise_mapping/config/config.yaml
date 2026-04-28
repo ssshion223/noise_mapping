@@ -1,0 +1,3 @@
+audio_process:
+  freq_length: 100 //ms
+  freq_overlap: 
