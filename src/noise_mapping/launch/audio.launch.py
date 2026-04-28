@@ -10,4 +10,10 @@ def generate_launch_description():
             name='audio_node',
             output='screen'
         )
+        Node(
+            package='noise_mapping',
+            executable='noisemapping_node',
+            name='noisemapping_node',
+            output='screen'
+        )
     ])
