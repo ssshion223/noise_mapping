@@ -17,29 +17,39 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(grid_map_core REQUIRED)
 find_package(grid_map_ros REQUIRED)
 find_package(grid_map_msgs REQUIRED)
-set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};/home/ssshion/ros2_project/noise_mapping/install")
 find_package(audio_interfaces REQUIRED)
 find_package(PkgConfig REQUIRED)
-find_package(grid_map_core REQUIRED)
-find_package(grid_map_ros REQUIRED)
-find_package(grid_map_cv REQUIRED)
+find_package(tf2 REQUIRED)
 pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
-
-add_executable(audio_node
-  src/audio_node.cpp
+add_library(audio_common
   common/ringbuffer.cpp
   common/microphone.cpp
   common/audio_process.cpp
 )
-target_link_libraries(your_node
-  grid_map_core
-  grid_map_ros
-  grid_map_cv
+add_executable(audio_node
+  src/audio_node.cpp
+)
+add_executable(noisemapping_node
+  src/noise_mapping.cpp
+)
+target_link_libraries(audio_common
+  ${PORTAUDIO_LIBRARIES}
 )
 target_link_libraries(audio_node
   ${PORTAUDIO_LIBRARIES}
+  audio_common
+)
+target_link_libraries(noisemapping_node
+  ${PORTAUDIO_LIBRARIES}
+  audio_common
+)
+target_include_directories(audio_common PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common>
 )
 target_include_directories(audio_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common>
+)
+target_include_directories(noisemapping_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common>
 )
 ament_target_dependencies(audio_node
@@ -47,7 +57,18 @@ ament_target_dependencies(audio_node
   std_msgs
   audio_interfaces
 )
-install(TARGETS audio_node
+ament_target_dependencies(noisemapping_node
+  rclcpp
+  std_msgs
+  audio_interfaces
+  grid_map_core
+  grid_map_ros
+  grid_map_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+)
+install(TARGETS audio_node noisemapping_node
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch

@@ -1,6 +1,6 @@
 #include "microphone.hpp"
 
-MicroPhone::MicroPhone(RingBuffer &rb): framecount_(256), ringbuffer_(rb) {}
+MicroPhone::MicroPhone(RingBuffer &rb): ringbuffer_(rb), framecount_(256) {}
 MicroPhone::~MicroPhone(){}
 
 bool MicroPhone::init(){
