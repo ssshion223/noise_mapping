@@ -8,6 +8,7 @@
 #include "ringbuffer.hpp"
 struct AudioFrame {
   float energy;
+  float norm_energy;
 };
 class AudioProcess {
 public:

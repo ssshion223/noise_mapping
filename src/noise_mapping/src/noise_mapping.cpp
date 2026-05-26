@@ -12,7 +12,7 @@ GridMapNode::GridMapNode(): Node("grid_map_node") {
   global_pub_ = this->create_publisher<grid_map_msgs::msg::GridMap>("/global_grid_map", 10);
   local_update_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), //do update and publish
   std::bind(&GridMapNode::local_update_cb, this));
-  global_update_timer_ = this->create_wall_timer(std::chrono::milliseconds(1000), //only do update
+  global_update_timer_ = this->create_wall_timer(std::chrono::milliseconds(100), //only do update
   std::bind(&GridMapNode::global_update_cb, this));
   global_pub_timer_ = this->create_wall_timer(std::chrono::milliseconds(3000), //only do update
   std::bind(&GridMapNode::global_pub_cb, this));
@@ -24,6 +24,7 @@ void GridMapNode::initialGridMap(){
   global_map_.setFrameId("map");
   global_map_.setGeometry(grid_map::Length(global_height_, global_weight_), resolution_);
   global_map_.add("energy");
+  global_map_["energy"].setZero();
   local_map_.setFrameId("base_link");
   // local_map_.setGeometry(grid_map::Length(local_height, local_weight, resolution_));
   local_map_.setGeometry(grid_map::Length((2*R_+1)*resolution_, (2*R_+1)*resolution_), resolution_);
@@ -60,14 +61,14 @@ void GridMapNode::local_update_cb(){
     return;
   }
 
-  float energy = audio_copy->dbfs;
+  float energy = audio_copy->norm_dbfs;
   grid_map::Index idx0(0, 0);
   // std::lock_guard<std::mutex> lock(local_and_tf_mutex_); 
   local_map_.at("energy", idx0) = energy;
   for (int i = 0; i <= 2*R_; i++) {
     for (int j = 0; j <= 2*R_; j++) {
       grid_map::Index idx(i, j);
-      if (!local_map_.isValid(idx)) continue;
+      // if (!local_map_.isValid(idx)) continue;
       local_map_.at("energy", idx) = energy * Gaussian_kernel_[i][j];
     }
   }

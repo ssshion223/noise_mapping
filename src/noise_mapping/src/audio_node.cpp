@@ -18,6 +18,7 @@ void AudioNode::audio_cb(){
   audio_interfaces::msg::AudioMsg msg;
   AudioFrame af = audio_process_.audio_frame_.load(std::memory_order_acquire);
   msg.dbfs = af.energy;
+  msg.norm_dbfs = af.norm_energy;
   msg.header.stamp = this->now();
   msg.header.frame_id = "base_link";
   pub_->publish(msg);

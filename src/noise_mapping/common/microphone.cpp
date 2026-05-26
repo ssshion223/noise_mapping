@@ -65,10 +65,9 @@ bool MicroPhone::start(){
   if (err != paNoError) {
     std::cerr << "Pa_StartStream failed: " << err << std::endl;
     return false;
+  }
   running_ = true;
   return true;
-
-}
 }
 int MicroPhone::paCallback(    
     const void *input, 
@@ -83,7 +82,7 @@ int MicroPhone::paCallback(
     if (!_input) {
       return paContinue;
     }
-    std::cout << _input[0] << std::endl;
+    // std::cout << _input[0] << std::endl;
     self->onAudio(_input, frameCount);
     return paContinue;
 }

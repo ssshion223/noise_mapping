@@ -34,6 +34,7 @@ void AudioProcess::run(){
     }
     AudioFrame af_temp;
     af_temp.energy = computeEnergy(frame.data(), n);
+    af_temp.norm_energy = (af_temp.energy+ 60 ) / 10;
     audio_frame_.store(af_temp);
   }
 }

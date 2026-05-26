@@ -21,6 +21,7 @@ find_package(audio_interfaces REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(tf2 REQUIRED)
 pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
+pkg_check_modules(LIBSERIAL REQUIRED libserial)
 add_library(audio_common
   common/ringbuffer.cpp
   common/microphone.cpp
@@ -31,6 +32,12 @@ add_executable(audio_node
 )
 add_executable(noisemapping_node
   src/noise_mapping.cpp
+)
+add_executable(serial_audio_node
+  src/serial_audio.cpp
+)
+add_executable(tf_node
+  src/tf_node.cpp
 )
 target_link_libraries(audio_common
   ${PORTAUDIO_LIBRARIES}
@@ -43,6 +50,9 @@ target_link_libraries(noisemapping_node
   ${PORTAUDIO_LIBRARIES}
   audio_common
 )
+target_link_libraries(serial_audio_node
+  ${LIBSERIAL_LIBRARIES}
+)
 target_include_directories(audio_common PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common>
 )
@@ -52,7 +62,16 @@ target_include_directories(audio_node PUBLIC
 target_include_directories(noisemapping_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common>
 )
+target_include_directories(serial_audio_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  ${LIBSERIAL_INCLUDE_DIRS}
+)
 ament_target_dependencies(audio_node
+  rclcpp
+  std_msgs
+  audio_interfaces
+)
+ament_target_dependencies(serial_audio_node
   rclcpp
   std_msgs
   audio_interfaces
@@ -68,7 +87,14 @@ ament_target_dependencies(noisemapping_node
   tf2_ros
   tf2_geometry_msgs
 )
-install(TARGETS audio_node noisemapping_node
+ament_target_dependencies(tf_node
+  rclcpp
+  std_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+)
+install(TARGETS audio_node noisemapping_node serial_audio_node tf_node
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY launch

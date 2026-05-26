@@ -8,7 +8,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2/utils.h>
 #include "audio_interfaces/msg/audio_msg.hpp"
-class GridMapNode :public rclcpp::Node {
+class GridMapNode : public rclcpp::Node {
 public:
   GridMapNode();
   ~GridMapNode();
@@ -20,13 +20,13 @@ private:  //private function
   void global_pub_cb();
   void compute_kernel(const int &R, std::vector<std::vector<float>> &k, const float &sigma);
 private:  //private member
-  int global_weight_ = 20;
-  int global_height_ = 20;
+  int global_weight_ = 80;
+  int global_height_ = 80;
   float resolution_ = 0.4;
-  int R_ = 5; //numbers of expanding
+  int R_ = 8; //numbers of expanding
   std::vector<std::vector<float>> Gaussian_kernel_;
-  float sigma_ = 0.3;
-  float alpha_ = 0.8;
+  float sigma_ = 1.2;
+  float alpha_ = 0.9;
   geometry_msgs::msg::TransformStamped tf_;
   grid_map::GridMap local_map_;
   grid_map::GridMap global_map_;
