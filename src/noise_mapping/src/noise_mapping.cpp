@@ -1,5 +1,7 @@
 #include "noise_mapping.hpp"
 
+#include <algorithm>
+#include <cmath>
 
 GridMapNode::GridMapNode(): Node("grid_map_node") {
   initialGridMap();
@@ -24,11 +26,18 @@ void GridMapNode::initialGridMap(){
   global_map_.setFrameId("map");
   global_map_.setGeometry(grid_map::Length(global_height_, global_weight_), resolution_);
   global_map_.add("energy");
+  global_map_.add("max_energy");
+  global_map_.add("sample_count");
   global_map_["energy"].setZero();
+  global_map_["max_energy"].setZero();
+  global_map_["sample_count"].setZero();
   local_map_.setFrameId("base_link");
   // local_map_.setGeometry(grid_map::Length(local_height, local_weight, resolution_));
   local_map_.setGeometry(grid_map::Length((2*R_+1)*resolution_, (2*R_+1)*resolution_), resolution_);
   local_map_.add("energy");
+  local_map_.add("weight");
+  local_map_["energy"].setZero();
+  local_map_["weight"].setZero();
 }
 void GridMapNode::compute_kernel(const int &R, std::vector<std::vector<float>> &k, const float &sigma){
   int size = 2 * R + 1; 
@@ -54,6 +63,7 @@ void GridMapNode::local_update_cb(){
     {
       std::lock_guard<std::mutex> lock(tf_mutex_);
       tf_ = tf_buffer_->lookupTransform("map", "base_link", tf2::TimePointZero);
+      has_tf_ = true;
     }
   } catch (tf2::TransformException &ex) {
     RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
@@ -62,41 +72,60 @@ void GridMapNode::local_update_cb(){
   }
 
   float energy = audio_copy->norm_dbfs;
-  grid_map::Index idx0(0, 0);
-  // std::lock_guard<std::mutex> lock(local_and_tf_mutex_); 
-  local_map_.at("energy", idx0) = energy;
   for (int i = 0; i <= 2*R_; i++) {
     for (int j = 0; j <= 2*R_; j++) {
       grid_map::Index idx(i, j);
-      // if (!local_map_.isValid(idx)) continue;
       local_map_.at("energy", idx) = energy * Gaussian_kernel_[i][j];
+      local_map_.at("weight", idx) = Gaussian_kernel_[i][j];
     }
   }
+  local_map_.setTimestamp(this->now().nanoseconds());
   auto msg = grid_map::GridMapRosConverter::toMessage(local_map_);
   local_pub_->publish(std::move(msg));
 }
 void GridMapNode::global_update_cb(){
   std::lock_guard<std::mutex> locklocal(local_mutex_);
   std::lock_guard<std::mutex> lockglobal(global_mutex_);
+  geometry_msgs::msg::TransformStamped tf_copy;
+  {
+    std::lock_guard<std::mutex> lock(tf_mutex_);
+    if (!has_tf_) {
+      return;
+    }
+    tf_copy = tf_;
+  }
   for (grid_map::GridMapIterator it(local_map_); !it.isPastEnd(); ++it) {
     grid_map::Position local_pos;
     local_map_.getPosition(*it, local_pos);
     double x = local_pos.x();
     double y = local_pos.y();
-    double tx = tf_.transform.translation.x;
-    double ty = tf_.transform.translation.y;
-    double yaw = tf2::getYaw(tf_.transform.rotation);
+    double tx = tf_copy.transform.translation.x;
+    double ty = tf_copy.transform.translation.y;
+    double yaw = tf2::getYaw(tf_copy.transform.rotation);
     double xg = x * std::cos(yaw) - y * std::sin(yaw) + tx;
     double yg = x * std::sin(yaw) + y * std::cos(yaw) + ty;
     grid_map::Index idx_global;
-    global_map_.getIndex(grid_map::Position(xg, yg), idx_global);
+    if (!global_map_.getIndex(grid_map::Position(xg, yg), idx_global)) {
+      continue;
+    }
+
     float &g = global_map_.at("energy", idx_global);
     float l = local_map_.at("energy", *it);
-    g = alpha_ * g + (1.0f - alpha_) * l;
+    float w = local_map_.at("weight", *it);
+    if (!std::isfinite(l) || !std::isfinite(w) || w <= 1e-3f) {
+      continue;
+    }
+
+    float &max_g = global_map_.at("max_energy", idx_global);
+    float &count = global_map_.at("sample_count", idx_global);
+    g = (g * count + l * w) / (count + w);
+    max_g = std::max(max_g, l);
+    count += w;
   }
 }
 void GridMapNode::global_pub_cb(){
   std::lock_guard<std::mutex> lock(global_mutex_);
+  global_map_.setTimestamp(this->now().nanoseconds());
   auto msg = grid_map::GridMapRosConverter::toMessage(global_map_);
   global_pub_->publish(std::move(msg));
 }

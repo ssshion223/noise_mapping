@@ -22,11 +22,12 @@ private:  //private function
 private:  //private member
   int global_weight_ = 80;
   int global_height_ = 80;
-  float resolution_ = 0.4;
+  float resolution_ = 0.8;
   int R_ = 8; //numbers of expanding
   std::vector<std::vector<float>> Gaussian_kernel_;
   float sigma_ = 1.2;
   float alpha_ = 0.9;
+  bool has_tf_ = false;
   geometry_msgs::msg::TransformStamped tf_;
   grid_map::GridMap local_map_;
   grid_map::GridMap global_map_;

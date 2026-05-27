@@ -2,7 +2,21 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <stdexcept>
+
+namespace {
+constexpr uint8_t kFrameHead0 = 0xE1;
+constexpr uint8_t kFrameHead1 = 0xDB;
+constexpr float kDbfsScale = 100.0f;
+
+float decode_dbfs(uint8_t dbfs_low, uint8_t dbfs_high) {
+  const auto raw = static_cast<int16_t>(
+      static_cast<uint16_t>(dbfs_low) |
+      (static_cast<uint16_t>(dbfs_high) << 8));
+  return static_cast<float>(raw) / kDbfsScale;
+}
+}  // namespace
 
 SerialAudioNode::SerialAudioNode()
     : Node("serial_audio_node"),
@@ -72,10 +86,22 @@ void SerialAudioNode::close_serial() {
 }
 
 void SerialAudioNode::read_loop() {
+  enum class ParseState {
+    WaitHead0,
+    WaitHead1,
+    SeqLow,
+    SeqHigh,
+    DbfsLow,
+    DbfsHigh,
+  };
+
+  ParseState state = ParseState::WaitHead0;
+  uint8_t dbfs_low = 0;
+
   while (running_) {
-    std::string line;
+    unsigned char byte = 0;
     try {
-      serial_.ReadLine(line, '\n', 100);
+      serial_.ReadByte(byte, 100);
     } catch (const LibSerial::ReadTimeout &) {
       continue;
     } catch (const std::exception &e) {
@@ -85,28 +111,46 @@ void SerialAudioNode::read_loop() {
       continue;
     }
 
-    if (!line.empty() && line.back() == '\r') {
-      line.pop_back();
-    }
-    if (line.empty()) {
-      continue;
-    }
+    switch (state) {
+      case ParseState::WaitHead0:
+        if (byte == kFrameHead0) {
+          state = ParseState::WaitHead1;
+        }
+        break;
 
-    try {
-      size_t parsed = 0;
-      float dbfs = std::stof(line, &parsed);
-      if (parsed == 0) {
-        continue;
+      case ParseState::WaitHead1:
+        if (byte == kFrameHead1) {
+          state = ParseState::SeqLow;
+        } else {
+          state = byte == kFrameHead0 ? ParseState::WaitHead1
+                                      : ParseState::WaitHead0;
+        }
+        break;
+
+      case ParseState::SeqLow:
+        state = ParseState::SeqHigh;
+        break;
+
+      case ParseState::SeqHigh:
+        state = ParseState::DbfsLow;
+        break;
+
+      case ParseState::DbfsLow:
+        dbfs_low = byte;
+        state = ParseState::DbfsHigh;
+        break;
+
+      case ParseState::DbfsHigh: {
+        const float dbfs = decode_dbfs(dbfs_low, byte);
+        {
+          std::lock_guard<std::mutex> lock(data_mutex_);
+          latest_dbfs_ = dbfs;
+          latest_norm_dbfs_ = normalize_dbfs(dbfs);
+          has_data_ = true;
+        }
+        state = ParseState::WaitHead0;
+        break;
       }
-
-      std::lock_guard<std::mutex> lock(data_mutex_);
-      latest_dbfs_ = dbfs;
-      latest_norm_dbfs_ = normalize_dbfs(dbfs);
-      has_data_ = true;
-    } catch (const std::exception &) {
-      RCLCPP_WARN_THROTTLE(
-          this->get_logger(), *this->get_clock(), 1000,
-          "Invalid serial audio data: '%s'", line.c_str());
     }
   }
 }
